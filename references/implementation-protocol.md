@@ -74,7 +74,26 @@ Check `conductor/workflow.md` for the implementation methodology.
 2. Write tests if the workflow requires them
 3. Run any defined test/lint commands
 
-### Step 4: Commit the Work
+### Step 4: Verify Coverage
+
+Run coverage reports using the project's chosen tools. For example:
+```bash
+pytest --cov=app --cov-report=html          # Python
+CI=true npm test -- --coverage              # Node.js
+go test -cover ./...                        # Go
+```
+
+Target: >80% coverage for new code (or whatever workflow.md specifies).
+
+### Step 5: Document Deviations
+
+If implementation differs from tech stack:
+- **STOP** implementation
+- Update `tech-stack.md` with the new design
+- Add dated note explaining the change
+- Resume implementation
+
+### Step 6: Commit the Work
 
 Format the commit message following Conductor convention:
 
@@ -82,7 +101,7 @@ Format the commit message following Conductor convention:
 conductor(<scope>): <description>
 ```
 
-Where `<scope>` is one of: `feat`, `fix`, `test`, `docs`, `refactor`
+Where `<scope>` is one of: `feat`, `fix`, `test`, `docs`, `refactor`, `style`, `chore`
 
 Example:
 ```bash
@@ -95,7 +114,7 @@ Capture the commit hash:
 COMMIT_HASH=$(git rev-parse --short HEAD)
 ```
 
-### Step 5: Attach Git Note
+### Step 7: Attach Git Note
 
 Create a structured summary and attach it as a git note:
 
@@ -106,10 +125,10 @@ Phase: <phase number>
 Changes:
 - <file1>: <what changed>
 - <file2>: <what changed>
-Tests: <pass/fail/skipped>" $COMMIT_HASH
+Tests: <pass/fail/skipped>" $(git log -1 --format="%H")
 ```
 
-### Step 6: Update Plan Status
+### Step 8: Update Plan Status
 
 In `plan.md`, update the completed task:
 
@@ -119,28 +138,54 @@ In `plan.md`, update the completed task:
 
 The hash in parentheses is the first 7 characters of the commit hash.
 
-### Step 7: Commit Plan Update
+### Step 9: Commit Plan Update
 
 ```bash
 git add conductor/tracks/<track_id>/plan.md
 git commit -m "conductor(plan): Mark task '<task name>' as complete"
 ```
 
-### Step 8: Check for Phase Completion
+### Step 10: Check for Phase Completion
 
 If all tasks in the current phase are now `[x]`:
 
-1. **Announce** — Tell the user the phase is complete
-2. **Run full test suite** — Execute the test command from workflow.md
-3. **Report results** — Show the user test results
-4. **Create checkpoint** — If tests pass:
-   ```bash
-   git tag conductor/<track_id>/phase-<N>-complete
-   ```
-5. **Ask for verification** — Request the user to manually verify
-6. **Wait** — Do not proceed to the next phase without user approval
+1. **Announce** — Tell the user the phase is complete and the verification protocol has begun
 
-### Step 9: Continue or Stop
+2. **Ensure Test Coverage for Phase Changes:**
+   - Determine phase scope: find the previous phase's checkpoint SHA from plan.md
+   - List changed files: `git diff --name-only <previous_checkpoint_sha> HEAD`
+   - For each code file (exclude .json, .md, .yaml), verify a corresponding test exists
+   - If a test file is missing, create one. Analyze existing test files first to match naming conventions and style.
+
+3. **Run Full Test Suite:**
+   - Announce the exact shell command before executing
+   - Use `CI=true` prefix for non-interactive execution (e.g., `CI=true npm test`)
+   - If tests fail, attempt to fix (maximum 2 attempts)
+   - If still failing after 2 attempts, stop and ask user for guidance
+
+4. **Propose Manual Verification Plan:**
+   - Analyze product.md, product-guidelines.md, and plan.md for user-facing goals
+   - Generate step-by-step verification instructions:
+     - **Frontend:** Start dev server, open browser URL, confirm visual elements
+     - **Backend:** Run curl/HTTP commands, confirm responses and status codes
+
+5. **Await User Confirmation:**
+   - Ask: "Does this meet your expectations? Please confirm with yes or provide feedback."
+   - PAUSE — do NOT proceed without explicit user approval
+
+6. **Create Checkpoint:**
+   ```bash
+   git commit -m "conductor(checkpoint): Checkpoint end of Phase <N>"
+   ```
+
+7. **Attach Verification Report as Git Note:**
+   - Include: automated test command/results, manual verification steps, user confirmation
+
+8. **Update Plan with Checkpoint:**
+   - Append checkpoint SHA to the phase heading: `[checkpoint: <sha>]`
+   - Commit: `conductor(plan): Mark phase '<Phase Name>' as complete`
+
+### Step 11: Continue or Stop
 
 After completing a task (and optionally a phase):
 
@@ -179,11 +224,24 @@ If you encounter conflicts in conductor files:
 
 When all phases in a plan are complete:
 
-1. Update `conductor/tracks/<track_id>/metadata.json` — set status to `"complete"`
-2. Update `conductor/tracks.md` — mark the track as ✅ Complete
+1. Update `conductor/tracks/<track_id>/metadata.json` — set status to `"complete"`, update `updated_at`
+2. Update `conductor/tracks.md` — mark the track as `[x]` complete
 3. Commit: `conductor(plan): Mark track '<track_id>' as complete`
-4. Inform the user the track is fully implemented
-5. Optionally suggest syncing any changed context back to conductor/ files
+
+4. **Documentation Sync** — Analyze the spec and propose updates to project context:
+   - `product.md` — if features significantly change the product description
+   - `tech-stack.md` — if technology choices shifted during implementation
+   - `product-guidelines.md` — only for strategic rebranding (with strict warnings)
+   - All changes require explicit user confirmation before applying
+   - Each approved change gets its own git commit
+
+5. **Track Cleanup** — Offer the user options:
+   - **Review** — Run the review protocol
+   - **Archive** — Move to `conductor/archive/`
+   - **Delete** — Permanently remove (with irreversible action warning)
+   - **Skip** — Leave for later
+
+6. Inform the user the track is fully implemented
 
 ## Resuming Work
 

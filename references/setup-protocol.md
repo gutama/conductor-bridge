@@ -7,48 +7,86 @@ started but not completed (check `conductor/setup_state.json`).
 ## Pre-Setup Check
 
 1. Check if `conductor/` directory exists
-2. If it does, check `conductor/setup_state.json` for the current step
-3. If STEP is "complete", setup is done — inform the user
-4. If STEP is something else, resume from that step
+2. If it does, check `conductor/setup_state.json` for the `last_successful_step` field
+3. If step is `"3.3_initial_track_generated"`, setup is done — inform the user
+4. If step is something else, resume from the next step after it
 5. If no conductor/ directory, start fresh
+
+**Resume mapping:**
+- `""` or missing → Start from Step 1 (Project Classification)
+- `"2.1_product_guide"` → Resume at Step 2.2 (Product Guidelines)
+- `"2.2_product_guidelines"` → Resume at Step 2.3 (Tech Stack)
+- `"2.3_tech_stack"` → Resume at Step 2.4 (Code Style Guides)
+- `"2.4_code_styleguides"` → Resume at Step 2.5 (Workflow)
+- `"2.5_workflow"` → Resume at Step 3.0 (Initial Track Generation)
+- `"3.3_initial_track_generated"` → Setup complete, inform user
 
 ## Project Classification
 
 Determine if this is a greenfield or brownfield project:
 
 **Brownfield indicators** (any of these = brownfield):
-- `package.json`, `requirements.txt`, `Cargo.toml`, or equivalent exists
+- `package.json`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pom.xml`, or equivalent exists
 - `src/`, `lib/`, or `app/` directory exists with code files
-- `.git/` directory has more than an initial commit
+- `.git/` directory exists with more than an initial commit
+- `git status --porcelain` shows uncommitted changes
 - Functional code files exist (not just README/config)
 
-**Greenfield**: Empty directory or only has README.md / basic config
+**Greenfield**: Empty directory or only has README.md / basic config, no
+dependency manifests, no source code directories.
 
 If brownfield and there are uncommitted changes, warn the user to
 commit or stash before proceeding.
 
+### Brownfield Pre-Analysis
+
+For brownfield projects, before asking interactive questions:
+
+1. **Request permission** for a read-only scan to analyze the project
+2. **Analyze codebase:**
+   - Read README.md first (if exists)
+   - Respect `.gitignore` and `.geminiignore` patterns
+   - Use `git ls-files` to efficiently list relevant files
+   - Prioritize manifest files (package.json, requirements.txt, etc.)
+   - For large files (>1MB), read only first and last 20 lines
+3. **Extract and infer:**
+   - Tech stack from manifest files
+   - Architecture from directory structure (top 2 levels)
+   - Project goal from README header or package.json description
+4. **Present findings** to user for confirmation/correction
+
 ## Setup Steps
 
-### Step 1: Create conductor/ directory
+### Step 1: Initialize
 
-```bash
-mkdir -p conductor/tracks
-mkdir -p conductor/code_styleguides
-```
+For greenfield projects:
+- Run `git init` if no `.git/` directory exists
+- Ask: "What do you want to build?"
+- Create `conductor/` directory and `conductor/tracks/`
+- Write user's response to `conductor/product.md` under `# Initial Concept`
+- Initialize state file: `{"last_successful_step": ""}`
+
+For brownfield projects:
+- Proceed directly with codebase analysis results
 
 ### Step 2.1: Product Definition (product.md)
 
-Interactively ask the user about:
+Interactively ask the user about (max 5 questions, one at a time):
 - What is this project/product?
 - Who are the target users?
 - What are the primary goals?
 - What are the key features?
 
-**For brownfield projects**: Analyze the existing codebase first.
-Read README.md, package.json (description), and scan the source code
-to pre-populate answers. Present your analysis and let the user correct.
+**For brownfield projects**: Use code analysis to pre-populate answers.
+Present analysis and let the user correct.
 
-Generate `conductor/product.md` with:
+**Question format:**
+- Classify each question as "Additive" (multiple answers) or "Exclusive Choice" (single answer)
+- Provide 3 suggested answers based on context
+- Always include "Type your own answer" and "Autogenerate and review" options
+- If user selects auto-generate, stop asking and infer remaining details
+
+Generate `conductor/product.md`:
 
 ```markdown
 # Product Guide: <Project Name>
@@ -68,21 +106,21 @@ Generate `conductor/product.md` with:
 - <Feature 2>
 ```
 
-Present to user for approval. Allow edits.
-Save `conductor/setup_state.json`: `{"STEP": "2.1_product_guide"}`
+Present to user for approval. Allow edits via confirmation loop.
+Save state: `{"last_successful_step": "2.1_product_guide"}`
 
 ### Step 2.2: Product Guidelines (product-guidelines.md)
 
-Ask about:
+Ask about (max 5 questions, one at a time):
 - Prose style and tone
 - Brand messaging guidelines
 - Any visual identity rules
 - Content standards
 
 Generate `conductor/product-guidelines.md`.
-Save state: `{"STEP": "2.2_product_guidelines"}`
+Save state: `{"last_successful_step": "2.2_product_guidelines"}`
 
-### Step 3: Tech Stack (tech-stack.md)
+### Step 2.3: Tech Stack (tech-stack.md)
 
 Ask about (or detect from brownfield project):
 - Programming language(s) and version(s)
@@ -95,94 +133,125 @@ Ask about (or detect from brownfield project):
 - Deployment target
 
 **For brownfield**: Parse package.json, requirements.txt, etc. to detect
-the stack automatically. Present findings and let user confirm/modify.
+the stack automatically. Present findings for confirmation.
+**CRITICAL:** Document the *existing* tech stack, not propose changes.
 
 Generate `conductor/tech-stack.md`.
-Save state: `{"STEP": "3_tech_stack"}`
+Save state: `{"last_successful_step": "2.3_tech_stack"}`
 
-### Step 4: Code Style Guides
+### Step 2.4: Code Style Guides
 
 Based on the tech stack, recommend appropriate style guides.
-Copy or generate style guide files into `conductor/code_styleguides/`.
 
-Common options:
+Available style guide templates (from Conductor extension):
+- `general.md` — General coding conventions
 - `typescript.md` — TypeScript/JavaScript conventions
+- `javascript.md` — JavaScript conventions
 - `python.md` — Python conventions (PEP 8 based)
 - `go.md` — Go conventions
-- `rust.md` — Rust conventions
+- `dart.md` — Dart conventions
+- `cpp.md` — C++ conventions
+- `csharp.md` — C# conventions
+- `html-css.md` — HTML/CSS conventions
 
-Save state: `{"STEP": "4_code_styleguides"}`
+For brownfield: auto-select based on detected tech stack, ask for confirmation.
+For greenfield: recommend based on chosen tech stack, let user customize.
 
-### Step 5: Workflow (workflow.md)
+Create `conductor/code_styleguides/` and copy selected guides.
+Save state: `{"last_successful_step": "2.4_code_styleguides"}`
+
+### Step 2.5: Workflow (workflow.md)
 
 This is the most important file. Ask about:
-- Do they use TDD? If so, what's the test command?
-- Commit message convention (default: Conductor convention)
-- Code review process
-- Branch strategy
-- Preferred CI checks
 
-Generate `conductor/workflow.md` following the template structure:
+1. "The default required test code coverage is >80%. Do you want to change this?"
+2. "Do you want to commit changes after each task or after each phase?"
+   - Default: After each task (recommended)
+3. "Do you want to use git notes or the commit message to record the task summary?"
+   - Default: Git Notes (recommended)
 
-Key sections to include:
-- Core Principles (TDD, code coverage targets, etc.)
-- Task Implementation Protocol (step-by-step for each task)
-- Commit Protocol (message format, when to commit)
-- Phase Completion Protocol (verification steps)
-- Non-Interactive & CI-Aware settings
+The workflow template includes:
+- **Guiding Principles** — Plan is source of truth, TDD, high coverage, CI-aware
+- **Standard Task Workflow** — Red/Green/Refactor phases, commit protocol, git notes
+- **Phase Completion Verification** — Test coverage check, manual verification, checkpoints
+- **Quality Gates** — Tests pass, coverage, style, docs, security, mobile
+- **Commit Guidelines** — Conventional commit format with type/scope/description
+- **Definition of Done** — Comprehensive checklist
+- **Emergency Procedures** — Critical bugs, data loss, security breach
 
-Save state: `{"STEP": "5_workflow"}`
+Generate `conductor/workflow.md` based on user choices.
+Save state: `{"last_successful_step": "2.5_workflow"}`
 
-### Step 6: Initialize tracks.md
+### Step 2.6: Finalization
 
-Create an empty tracks registry:
-
+1. Create `conductor/index.md`:
 ```markdown
-# Tracks
+# Project Context
 
-| ID | Title | Status | Created |
-|----|-------|--------|---------|
-
-_No tracks yet. Create one with "create a new track"._
-```
-
-### Step 7: Create index.md
-
-Create `conductor/index.md` linking to all generated files:
-
-```markdown
-# Conductor Project Index
-
-- [Product Guide](./product.md)
+## Definition
+- [Product Definition](./product.md)
 - [Product Guidelines](./product-guidelines.md)
 - [Tech Stack](./tech-stack.md)
+
+## Workflow
 - [Workflow](./workflow.md)
 - [Code Style Guides](./code_styleguides/)
+
+## Management
 - [Tracks Registry](./tracks.md)
 - [Tracks Directory](./tracks/)
 ```
 
-### Step 8: Finalize
+2. Summarize all actions taken during setup
 
-1. Update `conductor/setup_state.json`: `{"STEP": "complete", "CLASSIFICATION": "<greenfield|brownfield>"}`
-2. Commit everything:
-   ```bash
-   git add conductor/
-   git commit -m "conductor(setup): Initialize Conductor environment"
-   ```
-3. Inform the user that setup is complete
-4. Suggest creating a first track if they have a feature in mind
+## Step 3.0: Initial Track Generation
 
-## Creating a New Track
+### 3.1 Generate Product Requirements (Greenfield only)
 
-After setup, when the user wants a new feature:
+Ask sequential questions (max 5) about:
+- User stories
+- Functional requirements
+- Non-functional requirements
+
+### 3.2 Propose Initial Track
+
+Analyze product.md and tech-stack.md to propose a single initial track:
+- **Greenfield**: Usually an MVP track
+- **Brownfield**: Maintenance or targeted enhancement
+
+Present for user approval. If declined, ask for clarification.
+
+### 3.3 Create Track Artifacts
+
+1. Initialize `conductor/tracks.md`:
+```markdown
+# Project Tracks
+
+This file tracks all major tracks for the project.
+
+---
+
+- [ ] **Track: <Track Description>**
+  *Link: [./tracks/<track_id>/](./tracks/<track_id>/)*
+```
+
+2. Generate track ID: `<shortname>_YYYYMMDD`
+3. Create `conductor/tracks/<track_id>/` directory
+4. Generate and write: metadata.json, spec.md, plan.md, index.md
+5. Save state: `{"last_successful_step": "3.3_initial_track_generated"}`
+
+### 3.4 Final Announcement
+
+1. Commit all files: `conductor(setup): Add conductor setup files`
+2. Inform user setup is complete
+3. Suggest running implementation next
+
+## Creating a New Track (Post-Setup)
 
 ### Generate Track ID
 
-Use a kebab-case ID with a type prefix:
-- Features: `feat-<short-description>` (e.g., `feat-dark-mode`)
-- Bug fixes: `fix-<short-description>` (e.g., `fix-login-crash`)
-- Refactors: `refactor-<short-description>`
+Use a kebab-case short name with date suffix:
+- `<shortname>_YYYYMMDD` format (e.g., `darkmode_20260214`)
 
 ### Create Track Directory
 
@@ -207,25 +276,26 @@ Guidelines for good plans:
 - Tasks should be completable in a single focused session
 - Sub-tasks for complex items
 - Include testing tasks explicitly if TDD
+- **CRITICAL:** Each phase MUST end with a manual verification meta-task:
+  `- [ ] Task: Conductor - User Manual Verification '<Phase Name>' (Protocol in workflow.md)`
 
 ### Generate metadata.json
 
 ```json
 {
-  "id": "<track_id>",
-  "title": "<Human-Readable Title>",
-  "description": "<Brief description>",
-  "status": "pending",
+  "track_id": "<track_id>",
   "type": "<feature|bugfix|refactor>",
+  "status": "new",
   "created_at": "<ISO timestamp>",
-  "updated_at": "<ISO timestamp>"
+  "updated_at": "<ISO timestamp>",
+  "description": "<Brief description>"
 }
 ```
 
 ### Create Track index.md
 
 ```markdown
-# Track: <Title>
+# Track <track_id> Context
 
 - [Specification](./spec.md)
 - [Implementation Plan](./plan.md)
@@ -234,10 +304,11 @@ Guidelines for good plans:
 
 ### Register in tracks.md
 
-Add a row to `conductor/tracks.md`:
+Add entry to `conductor/tracks.md`:
 
-```
-| <track_id> | <Title> | ⏳ Pending | <date> |
+```markdown
+- [ ] **Track: <Track Description>**
+  *Link: [./tracks/<track_id>/](./tracks/<track_id>/)*
 ```
 
 ### Commit and Present
