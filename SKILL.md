@@ -18,7 +18,7 @@ description: >
 
 This skill enables Claude Code to work seamlessly with projects that use Google's
 [Gemini Conductor](https://github.com/gemini-cli-extensions/conductor) — a context-driven
-development framework (v0.3.0) that stores project knowledge, specs, and plans as versioned
+development framework (v0.4.1) that stores project knowledge, specs, and plans as versioned
 Markdown files in a `conductor/` directory.
 
 **Philosophy:** "Measure twice, code once." Conductor follows a strict protocol:
@@ -119,6 +119,7 @@ When the user asks "what's the status" or "conductor status":
 
 1. Read `conductor/tracks.md` to list all tracks and their statuses
 2. Find any in-progress track (marked `[~]` or `🔄 In Progress`)
+   - Parse both `- [ ] **Track:` (current format) and `## [ ] Track:` (legacy format)
 3. Read that track's `plan.md` to show current progress
 4. Report: which phase is active, which tasks are done/pending/in-progress, what's next
 5. Show aggregate metrics: total phases, tasks, completion percentage
@@ -256,12 +257,12 @@ When ALL phases in a plan are complete:
 
 1. Update `conductor/tracks/<track_id>/metadata.json` — set status to `"complete"`
 2. Update `conductor/tracks.md` — mark the track as `[x]` / `✅ Complete`
-3. Commit: `conductor(plan): Mark track '<track_id>' as complete`
+3. Commit: `chore(conductor): Mark track '<track_id>' as complete`
 4. **Documentation Sync** — Analyze the spec and propose updates to:
    - `product.md` (if features significantly change product description)
    - `tech-stack.md` (if technology choices shifted)
    - `product-guidelines.md` (only for strategic rebranding — with strict warnings)
-   All changes require explicit user confirmation before applying.
+   All changes require explicit user confirmation before applying. Commit approved changes: `docs(conductor): Synchronize docs for track '<track_id>'`
 5. **Track Cleanup** — Offer options: review, archive to `conductor/archive/`, delete, or skip
 6. Inform the user the track is fully implemented
 
@@ -285,13 +286,15 @@ Accept from user argument or ask interactively. Infer type: feature, bugfix, or 
 Read tracks.md and check for existing tracks with similar names. Reject duplicates.
 
 **Step 4: Build Specification Interactively**
-Ask sequential questions (max 5) to build the spec. Use classification:
+Ask batched questions (up to 4 related questions per prompt) to build the spec. Use classification:
 - **Additive** questions: for scope, features, requirements (multiple answers allowed)
 - **Exclusive Choice** questions: for singular decisions (single answer)
 
-Always offer "auto-generate" option to skip remaining questions.
+Always offer "auto-generate" option to skip remaining questions. Do not repeat questions in chat; wait for user responses before proceeding.
 
 **Step 5: Generate Track Artifacts**
+
+Before writing any files, draft the spec and plan and present them to the user for approval. Only write files to disk after the user approves the drafts.
 
 a. **Generate Track ID**: `<shortname>_YYYYMMDD` format (e.g., `darkmode_20260214`)
 
@@ -519,7 +522,8 @@ conductor(<scope>): <description>
 - `conductor(test): Add unit tests for auth middleware`
 - `conductor(plan): Mark task 'Create user model' as complete`
 - `conductor(plan): Mark phase 'Core Setup' as complete`
-- `conductor(plan): Mark track 'auth_20260115' as complete`
+- `chore(conductor): Mark track 'auth_20260115' as complete`
+- `docs(conductor): Synchronize docs for track 'auth_20260115'`
 - `conductor(spec): Create track 'darkmode_20260120'`
 - `conductor(setup): Add conductor setup files`
 - `conductor(checkpoint): Checkpoint end of Phase 1`
@@ -561,8 +565,9 @@ Before marking any task complete, verify:
 - **Human in the loop** — Always get user approval at phase boundaries and before major actions
 - **Update as you go** — Keep plan.md current; don't batch status updates
 - **Respect the stack** — Use only technologies defined in tech-stack.md unless explicitly approved
-- **Validate every step** — If any operation fails, halt and report to the user
+- **Validate every tool call** — After every file read/write or shell command, verify success. If any tool call fails, halt immediately and report the failure to the user before awaiting further instruction
 - **Non-interactive & CI-aware** — Use `CI=true` for watch-mode tools to ensure single execution
+- **Batch interactive questions** — When asking the user multiple questions (e.g., during setup or newTrack), batch up to 4 related questions together rather than asking one at a time
 
 ## Resuming Work
 
