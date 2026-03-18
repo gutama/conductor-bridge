@@ -4,6 +4,12 @@ This is the step-by-step protocol for implementing tasks from a Conductor plan.
 Follow this exactly when the user says "implement", "continue implementing",
 "start the next task", or similar.
 
+## System Directive
+
+Validate the success of every tool call (file read, file write, shell command).
+If any tool call fails, halt immediately and inform the user before awaiting
+further instruction. Never proceed past a failed operation.
+
 ## Pre-Implementation: Load Context
 
 Before writing any code, always read these files:
@@ -226,14 +232,14 @@ When all phases in a plan are complete:
 
 1. Update `conductor/tracks/<track_id>/metadata.json` — set status to `"complete"`, update `updated_at`
 2. Update `conductor/tracks.md` — mark the track as `[x]` complete
-3. Commit: `conductor(plan): Mark track '<track_id>' as complete`
+3. Commit: `chore(conductor): Mark track '<track_id>' as complete`
 
 4. **Documentation Sync** — Analyze the spec and propose updates to project context:
    - `product.md` — if features significantly change the product description
    - `tech-stack.md` — if technology choices shifted during implementation
    - `product-guidelines.md` — only for strategic rebranding (with strict warnings)
    - All changes require explicit user confirmation before applying
-   - Each approved change gets its own git commit
+   - Commit approved changes: `docs(conductor): Synchronize docs for track '<track_id>'`
 
 5. **Track Cleanup** — Offer the user options:
    - **Review** — Run the review protocol

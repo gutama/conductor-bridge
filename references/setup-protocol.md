@@ -4,6 +4,11 @@ This protocol is for when the user wants to set up Conductor on a project
 that doesn't already have a `conductor/` directory, or when setup was
 started but not completed (check `conductor/setup_state.json`).
 
+**System Directive:** Validate the success of every tool call. If any tool call
+fails, halt immediately and report to the user before awaiting further instruction.
+When asking the user multiple questions, batch up to 4 related questions per prompt
+rather than asking one at a time.
+
 ## Pre-Setup Check
 
 1. Check if `conductor/` directory exists
