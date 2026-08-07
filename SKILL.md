@@ -286,11 +286,11 @@ Accept from user argument or ask interactively. Infer type: feature, bugfix, or 
 Read tracks.md and check for existing tracks with similar names. Reject duplicates.
 
 **Step 4: Build Specification Interactively**
-Ask batched questions (up to 4 related questions per prompt) to build the spec. Use classification:
+Gather requirements for `spec.md`. Use classification:
 - **Additive** questions: for scope, features, requirements (multiple answers allowed)
 - **Exclusive Choice** questions: for singular decisions (single answer)
 
-Always offer "auto-generate" option to skip remaining questions. Do not repeat questions in chat; wait for user responses before proceeding.
+If `ask_question` (or native modal tool) is available, group questions into an interactive GUI dialog modal. In text chat, ask questions strictly one at a time and wait for user responses. Provide context-aware recommended options where appropriate. Always offer an "auto-generate" or custom option.
 
 **Step 5: Generate Track Artifacts**
 
@@ -567,7 +567,8 @@ Before marking any task complete, verify:
 - **Respect the stack** — Use only technologies defined in tech-stack.md unless explicitly approved
 - **Validate every tool call** — After every file read/write or shell command, verify success. If any tool call fails, halt immediately and report the failure to the user before awaiting further instruction
 - **Non-interactive & CI-aware** — Use `CI=true` for watch-mode tools to ensure single execution
-- **Batch interactive questions** — When asking the user multiple questions (e.g., during setup or newTrack), batch up to 4 related questions together rather than asking one at a time
+- **Interaction Protocol & UX Adapter** — Check for native modal tools like `ask_question`. If available, use interactive GUI dialog modals for user prompts. If in standard text chat, ask questions strictly one at a time (sequential execution) and await user response before proceeding
+- **Strategic Transparency** — Explain the strategic value to the user before creating or modifying core infrastructure or track artifacts
 
 ## Resuming Work
 
